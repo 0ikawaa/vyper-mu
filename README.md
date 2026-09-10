@@ -13,20 +13,44 @@ data original de Season 6.
 
 ## Instalacion
 
+En una PC limpia con Windows 10 u 11, lo unico que hace falta tener de antemano
+es **Git**. Todo lo demas lo resuelve el instalador.
+
 ```powershell
 git clone https://github.com/0ikawaa/vyper-mu.git
 cd vyper-mu
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\install.ps1
 ```
 
-Tarda entre 20 y 40 minutos la primera vez: casi todo es descarga (PostgreSQL
-325 MB, assets del juego 426 MB, y compilar el servidor).
+La linea de `Set-ExecutionPolicy` solo afecta a esa ventana de PowerShell y es
+necesaria porque Windows bloquea por defecto los scripts descargados.
 
-Si PowerShell se niega a correr el script:
+Tarda entre 20 y 40 minutos: casi todo es descarga (PostgreSQL 325 MB, assets
+del juego 426 MB) y compilar el servidor.
 
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
+### Que instala, y que no
+
+| | Donde queda |
+|---|---|
+| Git | En el sistema (lo instala con winget si falta) |
+| .NET 10 SDK | En el sistema (idem) |
+| PostgreSQL 17 | **Portable**, dentro de `server\pgsql\` |
+| OpenMU | Compilado en `server\bin\` |
+| Assets del juego | `client\runtime\Data\` |
+
+Para sacarlo todo hay un desinstalador — ver [abajo](#desinstalar).
+
+### Si Windows bloquea el cliente
+
+`Main.exe` es un ejecutable descargado sin firma digital, asi que Defender o
+SmartScreen pueden marcarlo. Es un build del cliente open source
+[MuMain](https://github.com/sven-n/MuMain). Si te lo bloquea, agrega la carpeta
+del repo como exclusion en Seguridad de Windows.
+
+> No necesitas instalar el Visual C++ Redistributable: `Main.exe` esta enlazado
+> estaticamente y la libreria de red usa la Universal CRT, que ya viene en
+> Windows 10 y 11.
 
 ## Jugar
 
@@ -70,6 +94,7 @@ login: se registra sola.
 | `.\scripts\backup.ps1` | Backup de la base |
 | `.\scripts\restore.ps1 -File <archivo>` | Restaura un backup |
 | `.\scripts\reset.ps1` | Borra la base y empieza de cero |
+| `.\uninstall.ps1` | Desinstala todo (ver [Desinstalar](#desinstalar)) |
 
 **Cliente**
 
@@ -147,6 +172,29 @@ MuMain trae algunas cosas por encima del cliente original — inventario y baul
 extendidos, MU Helper, auto-reconnect, framerate desbloqueado — que vienen
 compiladas y no se desactivan. La data del juego, en cambio, es la original de
 Season 6. Detalle en [docs/02-cliente.md](docs/02-cliente.md).
+
+## Desinstalar
+
+```powershell
+.\uninstall.ps1 -DryRun    # primero mira que encontraria, sin borrar nada
+.\uninstall.ps1            # y despues, si queres, borra
+```
+
+Lista todo lo que dejo la instalacion con su tamano y va preguntando que sacar:
+
+- Los datos del juego (assets, PostgreSQL portable, OpenMU compilado, la base)
+- Los backups, si tenes
+- La regla de firewall y la tarea programada de backup, si las creaste
+- La cache de NuGet, que compilar OpenMU infla bastante
+- Git y el .NET 10 SDK
+
+**Siempre pregunta antes de tocar tus backups, la cache de NuGet, Git y el .NET
+SDK**, incluso con `-Todo`: o son irreemplazables, o los puede estar usando otro
+programa tuyo. Y si hay una base con personajes, te ofrece hacer un backup antes
+de borrarla.
+
+Al final queda la carpeta del repo vacia de datos; borrala a mano para terminar
+(un script no puede borrar la carpeta desde la que se esta ejecutando).
 
 ## Requisitos
 

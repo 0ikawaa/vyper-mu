@@ -94,7 +94,19 @@ if (Test-Path (Join-Path $pgDir 'bin\postgres.exe')) {
         if ($LASTEXITCODE -ne 0) { Write-Host "  Fallo la descarga." -ForegroundColor Red; exit 1 }
     }
     Write-Host "  Extrayendo..." -ForegroundColor Yellow
-    Expand-Archive -Path $zip -DestinationPath (Join-Path $root 'server') -Force
+    # tar (bsdtar) viene con Windows 10 1803+ y descomprime esto en ~1 minuto;
+    # Expand-Archive de PowerShell 5.1 puede tardar 10 con un zip de 325 MB.
+    $destino = Join-Path $root 'server'
+    if (Get-Command tar -ErrorAction SilentlyContinue) {
+        Invoke-Native { tar -xf $zip -C $destino }
+    }
+    if (-not (Test-Path (Join-Path $pgDir 'bin\postgres.exe'))) {
+        Write-Host "  (usando Expand-Archive, va a tardar mas)" -ForegroundColor DarkGray
+        Expand-Archive -Path $zip -DestinationPath $destino -Force
+    }
+    if (-not (Test-Path (Join-Path $pgDir 'bin\postgres.exe'))) {
+        Write-Host "  No se pudo extraer PostgreSQL." -ForegroundColor Red; exit 1
+    }
     Remove-Item $zip -Force
     Write-Host "  OK" -ForegroundColor Green
 }
