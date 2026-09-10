@@ -16,19 +16,21 @@ Write-Host ("  PostgreSQL : {0}" -f $(if($pg){"corriendo ($($pg.Count) procesos)
 Write-Host ("  OpenMU     : {0}" -f $(if($mu){"corriendo (PID $($mu.Id))"}else{"parado"}))          -ForegroundColor $(if($mu){'Green'}else{'DarkGray'})
 
 Write-Host "`n--- Puertos ---" -ForegroundColor Cyan
-$puertos = [ordered]@{
-    5433  = 'PostgreSQL'
-    5000  = 'Panel de administracion'
-    44405 = 'Connect server (cliente original)'
-    44406 = 'Connect server (MuMain) <- el que usa tu cliente'
-    55901 = 'Game server 1'
-    55902 = 'Game server 2'
-    55903 = 'Game server 3'
-    55980 = 'Chat server'
-}
-foreach ($p in $puertos.Keys) {
-    $ok = Test-Puerto $p
-    Write-Host ("  {0,-6} {1,-8} {2}" -f $p, $(if($ok){'ABIERTO'}else{'cerrado'}), $puertos[$p]) -ForegroundColor $(if($ok){'Green'}else{'DarkGray'})
+# Lista de pares en vez de hashtable: en un [ordered], indexar con un entero
+# busca por POSICION y no por clave, y las descripciones salen vacias.
+$puertos = @(
+    @{ N = 5433;  D = 'PostgreSQL' },
+    @{ N = 5000;  D = 'Panel de administracion' },
+    @{ N = 44405; D = 'Connect server (cliente original)' },
+    @{ N = 44406; D = 'Connect server (MuMain) <- el que usa tu cliente' },
+    @{ N = 55901; D = 'Game server 1' },
+    @{ N = 55902; D = 'Game server 2' },
+    @{ N = 55903; D = 'Game server 3' },
+    @{ N = 55980; D = 'Chat server' }
+)
+foreach ($item in $puertos) {
+    $ok = Test-Puerto $item.N
+    Write-Host ("  {0,-6} {1,-8} {2}" -f $item.N, $(if($ok){'ABIERTO'}else{'cerrado'}), $item.D) -ForegroundColor $(if($ok){'Green'}else{'DarkGray'})
 }
 
 Write-Host "`n--- Cliente ---" -ForegroundColor Cyan
