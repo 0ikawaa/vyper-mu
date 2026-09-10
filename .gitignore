@@ -1,0 +1,40 @@
+# ---- Servidor: todo lo que se descarga o compila ----
+# (los comentarios en .gitignore van en su propia linea, nunca al final de un patron)
+
+# Binarios de PostgreSQL (325 MB), los baja install.ps1
+server/pgsql/
+# La base de datos en si
+server/pgdata/
+# OpenMU compilado
+server/bin/
+# Codigo fuente de OpenMU clonado
+server/_src/
+server/logs/
+server/pg.zip
+
+# Password local de la base - NUNCA subir
+server/.pgpassword
+server/.pginit
+
+# ---- Cliente ----
+# Main.exe, la DLL de red y config.ini SI van al repo (builds open source).
+# Los assets del juego NO: son de Webzen, los baja setup-client.ps1.
+client/runtime/Data/
+client/runtime/fonts/
+# Clon temporal de MuMain
+client/_build/
+client/*.tar.gz
+client/*.sha256
+
+# ---- Otros ----
+backups/*.dump
+backups/*.sql
+backups/*.gz
+docker/.env
+Thumbs.db
+desktop.ini
+
+# ---- Archivos que genera el cliente al correr ----
+client/runtime/MuError.log
+client/runtime/*.log
+client/runtime/Local/

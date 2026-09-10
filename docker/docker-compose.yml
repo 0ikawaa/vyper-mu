@@ -1,0 +1,66 @@
+# MU Online - Servidor OpenMU (Season 6 Episodio 3)
+# Stack minimo: base de datos + servidor. Sin nginx, sin monitoreo, sin extras.
+# El panel admin se expone directo en http://localhost:8080
+
+services:
+  database:
+    image: postgres:17-alpine
+    container_name: mu-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: openmu
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?definir DB_PASSWORD en .env}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d openmu"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Sin puerto publicado: solo el servidor accede a la DB por la red interna.
+    # Descomentar para conectar con pgAdmin/DBeaver desde el host:
+    # ports:
+    #   - "127.0.0.1:5432:5432"
+
+  openmu:
+    image: munique/openmu:latest
+    container_name: mu-server
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      # --- Base de datos ---
+      DB_HOST: database
+      DB_ADMIN_USER: postgres
+      DB_ADMIN_PW: ${DB_PASSWORD:?definir DB_PASSWORD en .env}
+
+      # --- Panel de administracion ---
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_ENVIRONMENT: Production
+      OPENMU_ADMIN_USER: ${ADMIN_USER:?definir ADMIN_USER en .env}
+      OPENMU_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?definir ADMIN_PASSWORD en .env}
+
+      # --- IP que el connect server le informa al cliente ---
+      # loopback  -> 127.127.127.127  (cliente y server en la misma PC)
+      # local     -> IP de tu LAN     (jugar con gente de tu red)
+      # public    -> IP publica       (servidor abierto a internet)
+      # o una IP/hostname fijo, ej: 190.64.12.34
+      RESOLVE_IP: ${RESOLVE_IP:-loopback}
+    ports:
+      - "${ADMIN_PORT:-8080}:8080"   # Panel de administracion
+      - "44405:44405"                # Connect server - cliente ORIGINAL S6E3
+      - "44406:44406"                # Connect server - cliente open source (MuMain)
+      - "55901:55901"                # Game server 1
+      - "55902:55902"                # Game server 2
+      - "55903:55903"                # Game server 3
+      - "55980:55980"                # Chat server (mensajeria in-game)
+    volumes:
+      - adminpanel-keys:/app/data-protection-keys
+    working_dir: /app/
+
+volumes:
+  dbdata:
+  adminpanel-keys:
