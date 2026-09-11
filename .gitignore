@@ -38,3 +38,9 @@ desktop.ini
 client/runtime/MuError.log
 client/runtime/*.log
 client/runtime/Local/
+
+# ---- Item Editor (tools/item-editor) ----
+tools/item-editor/bin/
+tools/item-editor/obj/
+tools/item-editor/backups/
+install.log

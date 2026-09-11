@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vyper-mu · Item Editor</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f0b429'/%3E%3Ctext x='16' y='22' font-size='16' font-family='sans-serif' font-weight='800' text-anchor='middle' fill='%231a1400'%3EIE%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="logo">IE</span> Item Editor <small>vyper-mu</small></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Buscar por nombre, grupo/numero (ej: 7 5) o indice…" autocomplete="off">
+      <kbd>/</kbd>
+    </div>
+    <div class="spacer"></div>
+    <div class="pills" id="pills"></div>
+    <button class="btn" id="btn-undo" disabled title="Deshacer el ultimo guardado (Ctrl+Z)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
+      Deshacer
+    </button>
+    <button class="btn" id="btn-reload" title="Recargar desde la base y el cliente">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+    </button>
+  </header>
+
+  <aside class="sidebar">
+    <h4>Grupos</h4>
+    <div id="groups"></div>
+    <h4>Clase</h4>
+    <div class="chips" id="class-chips"></div>
+    <h4>Filtros</h4>
+    <div class="chips" id="flag-chips">
+      <button class="chip" data-flag="desync">Cliente desincronizado</button>
+      <button class="chip" data-flag="noclient">Sin registro en cliente</button>
+      <button class="chip" data-flag="drops">Dropea de monstruos</button>
+    </div>
+  </aside>
+
+  <section class="list">
+    <div class="list-head">
+      <span id="list-count">…</span>
+      <span class="spacer"></span>
+      <label class="muted" style="font-size:12px">Orden
+        <select id="sort" class="input" style="width:auto;padding:3px 6px;margin-left:4px">
+          <option value="gn">grupo / numero</option>
+          <option value="name">nombre</option>
+          <option value="level">nivel</option>
+        </select>
+      </label>
+    </div>
+    <div class="list-body" id="list"></div>
+  </section>
+
+  <section class="editor" id="editor">
+    <div class="empty" style="margin-top:120px">
+      <p>Elegí un item de la lista para editarlo.</p>
+      <p class="muted" style="font-size:12px">Tip: <span class="kbd">/</span> para buscar, <span class="kbd">↑</span><span class="kbd">↓</span> para moverte, <span class="kbd">Ctrl+S</span> para guardar.</p>
+    </div>
+  </section>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div id="modal-root"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

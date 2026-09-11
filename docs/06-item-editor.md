@@ -1,0 +1,133 @@
+# Item Editor
+
+Editor web de items, al estilo Mu Maker pero para este stack: edita **las dos
+mitades** de un item, la del servidor (OpenMU, en PostgreSQL) y la del cliente
+(MuMain, en `Item_eng.bmd`), y te avisa cuando no coinciden.
+
+```powershell
+.\scripts\start.ps1          # hace falta PostgreSQL corriendo
+.\scripts\item-editor.ps1    # abre http://localhost:5050
+```
+
+La primera vez compila (~30 s). Es una app local: escucha solo en `localhost`
+y no tiene login, no la expongas a internet.
+
+## Que se puede hacer
+
+| Pestaña | Que edita | Donde vive |
+|---|---|---|
+| **General** | Nombre, grupo/numero, slot de equipo, tamaño en la grilla, nivel del item, nivel maximo (+15), durabilidad, valor, sockets, munición / ligado / quest, skill del item, efecto al consumir | Servidor |
+| **Stats** | Stats base (`ItemBasePowerUpDefinition`): daño min/max, defensa, velocidad, rise, vida, mana, cualquier atributo de los 321 que tiene OpenMU; modo (suma / multiplica / suma final / maximo) y tabla de bonus por nivel | Servidor |
+| **Requisitos** | Nivel, fuerza, agilidad, vitalidad, energia, comando o cualquier otro atributo | Servidor |
+| **Clases** | Que clases lo equipan, por evolucion (DW / SM / GM, etc.) | Servidor |
+| **Opciones y sets** | Opciones posibles (luck, skill, excelentes, harmony, sockets, ancient) y sets a los que pertenece | Servidor |
+| **Drops** | Si dropea de monstruos, entre que niveles, y en que grupos de drop especiales entra (jewels, cajas, eventos) | Servidor |
+| **Cliente** | El registro completo de `Item_eng.bmd`: nombre, nivel, tamaño, slot, daño, defensa, requisitos, clases, resistencias… | Cliente |
+
+Y ademas:
+
+- **Buscar** por nombre (servidor o cliente), por `grupo/numero` (`7 5`, `7/5`) o por indice.
+- **Filtros** por grupo, clase, "dropea", "sin registro en cliente" y **"cliente desincronizado"**.
+- **Clonar**: crea un item nuevo copiando stats, requisitos, clases y opciones a otro grupo/numero, y opcionalmente su registro en el cliente.
+- **Borrar**: si algun personaje tiene uno en el inventario, el servidor lo rechaza y no borra nada.
+- **Deshacer** (`Ctrl+Z`) el ultimo guardado, servidor o cliente.
+- `Ctrl+S` guarda, `/` va al buscador, `↑` `↓` recorren la lista.
+
+## Servidor vs. cliente: por que hay dos lados
+
+En MU el cliente no le pregunta al servidor como es un item: tiene su propia
+tabla (`Data\Local\Eng\Item_eng.bmd`) con nombre, tamaño, requisitos, daño,
+defensa, clases… y es lo que el jugador **ve** en el tooltip y en el inventario.
+El servidor (OpenMU, esquema `config` en PostgreSQL) tiene su propia
+definicion, que es la que **aplica**: daño real, si te deja equiparlo, que
+dropea.
+
+Si editas solo un lado, el juego miente: el tooltip dice una cosa y pasa otra.
+Por eso la pestaña **Cliente** compara los dos y ofrece:
+
+- **← Aplicar valores del servidor al cliente**: rellena el registro del cliente
+  con lo que el servidor implica (nombre, nivel, tamaño, requisitos, daño,
+  defensa, bloqueo, velocidad, poder magico, clases).
+- **Importar del cliente al servidor →**: al reves, util si editaste el
+  `Item_eng.bmd` con otra herramienta.
+
+Los dos lados se relacionan por `indice = grupo * 512 + numero`. La
+correspondencia de campos es la que usa OpenMU al inicializar la data de
+Season 6:
+
+| Cliente (`Item_eng.bmd`) | Servidor (atributo de OpenMU) |
+|---|---|
+| Level | `DropLevel` |
+| RequireStrength / Dexterity / Vitality / Energy / Charisma / Level | Requisito `Total … Requirement Value` / `Level` |
+| DamageMin / DamageMax | `Minimum/Maximum Physical Base Damage By Weapon` |
+| Defense | `Base Defense` (escudos: `Shield Defense (item)`) |
+| SuccessfulBlocking | `Defense Rate (PvM)` |
+| WeaponSpeed | `Attack Speed by Weapons` |
+| MagicPower | `Staff Rise Percentage` × 2 (cetros: `Scepter Rise Percentage` × 2) |
+| RequireClass[DW, DK, ELF, MG, DL, SUM, RF] | Clases habilitadas; el valor es el paso minimo (1 base, 2 segunda, 3 tercera) |
+
+Al abrir la lista vas a ver algunos items marcados `≠`: son diferencias que
+**ya vienen** entre la data de OpenMU y la del cliente MuMain (por ejemplo
+`Katache` en el servidor y `Katana` en el cliente, o alas que OpenMU deja
+equipar a la clase base). No es que el editor las haya roto; es informacion.
+
+## Cuando se aplican los cambios
+
+- **Cliente**: al proximo `play.ps1`. El archivo se reescribe entero con el
+  mismo cifrado y checksum que espera MuMain.
+- **Servidor**: OpenMU carga la configuracion **al arrancar**. Despues de guardar,
+  la barra de arriba te avisa "Reinicia el server para aplicar":
+
+  ```powershell
+  .\scripts\stop.ps1
+  .\scripts\start.ps1
+  ```
+
+  Los jugadores conectados se desconectan. Para un server con gente, editá y
+  reiniciá en un horario tranquilo.
+
+## Backups
+
+Antes de escribir cualquier cosa el editor guarda en `tools\item-editor\backups\`:
+
+| Archivo | Cuando |
+|---|---|
+| `Item_eng.<fecha>.bmd` | Copia del archivo del cliente, la primera vez que lo toca en cada sesion |
+| `items-db.<fecha>.json` | Volcado de los 677 items del servidor, la primera vez que escribe en la base en cada sesion |
+| `items\<grupo>-<numero>.<fecha>.<accion>.json` | El item tal como estaba antes de cada guardado o borrado |
+
+Para volver atras el cliente: copiá el `.bmd` de backup sobre
+`client\runtime\Data\Local\Eng\Item_eng.bmd`. Para el servidor, el
+`backup.ps1` de siempre sigue siendo la red de seguridad grande; los JSON son
+para recuperar un item puntual a mano (o pegarle el contenido al editor por la
+API, `PUT /api/items/{id}`).
+
+## Items nuevos y modelos 3D
+
+Clonar un item a un numero libre funciona del lado del servidor y del cliente
+(nombre, stats, tooltip). Lo que **no** se puede definir desde aca es el modelo
+3D: MuMain asocia cada indice a su archivo `.bmd` de `Data\Item\` en codigo
+(`OpenItems()` en `ZzzOpenData.cpp`), no en una tabla. Un indice que el cliente
+no conoce se ve sin modelo. Para darle uno hay que recompilar el cliente
+(ver `docs\build\windows\console.md` en el repo de MuMain).
+
+Lo que si funciona sin recompilar: reusar un indice que ya tenga modelo (por
+ejemplo, redefinir por completo un item que no uses) o cambiar todo lo demas de
+cualquiera de los 677 items originales.
+
+## Detalles tecnicos
+
+- `tools\item-editor\`: .NET 10 minimal API + Npgsql, frontend en HTML/JS plano
+  (`wwwroot\`). No agrega dependencias: usa el mismo SDK que compila OpenMU.
+- Lee la password de PostgreSQL de `server\.pgpassword` y se conecta a
+  `localhost:5433/openmu`.
+- Escribe con SQL directo en el esquema `config` (`ItemDefinition`,
+  `AttributeRequirement`, `ItemBasePowerUpDefinition` y las tablas de union),
+  siempre dentro de una transaccion. Los ids son GUID nuevos; el
+  `GameConfigurationId` se toma de la fila unica de `GameConfiguration`.
+- `Item_eng.bmd`: 8192 registros de 84 bytes (formato "legacy" de 30 bytes de
+  nombre; tambien soporta el de 50), XOR con `FC CF AB`, checksum
+  `GenerateCheckSum2` con clave `0xE2F1`. Igual que `ItemDataLoader.cpp` de MuMain.
+- API: `GET/PUT /api/items/{id}`, `POST /api/items/{id}/clone`,
+  `DELETE /api/items/{id}`, `GET/PUT/DELETE /api/client/items/{indice}`,
+  `GET /api/meta`, `GET /api/status`, `GET /api/backups`.
