@@ -24,6 +24,10 @@ y no tiene login, no la expongas a internet.
 | **Drops** | Si dropea de monstruos, entre que niveles, y en que grupos de drop especiales entra (jewels, cajas, eventos) | Servidor |
 | **Cliente** | El registro completo de `Item_eng.bmd`: nombre, nivel, tamaño, slot, daño, defensa, requisitos, clases, resistencias… | Cliente |
 
+Y arriba de todo, para cualquier item, la **vista 3D**: el modelo `.bmd` que usa el
+cliente, con su textura, girando. Se arrastra para rotar, rueda para acercar,
+doble clic para centrar; botones para girar solo, wireframe y agrandar.
+
 Y ademas:
 
 - **Buscar** por nombre (servidor o cliente), por `grupo/numero` (`7 5`, `7/5`) o por indice.
@@ -102,14 +106,43 @@ Para volver atras el cliente: copiá el `.bmd` de backup sobre
 para recuperar un item puntual a mano (o pegarle el contenido al editor por la
 API, `PUT /api/items/{id}`).
 
+## Vista 3D: de donde sale
+
+El visor lee los mismos archivos que el juego:
+
+- **Modelo**: `Data\Item\*.bmd` o `Data\Player\*.bmd` (formato BMD de Webzen;
+  version 0xC cifrada con la clave de mapas, 0xA en claro). Se calcula la pose
+  del frame 0 con los huesos del propio archivo, igual que `BMD::Animation()`
+  de MuMain.
+- **Textura**: el nombre guardado dentro del BMD (`sword02.jpg`) se busca en la
+  misma carpeta como `.OZJ` (JPEG con 24 bytes de cabecera), `.OZT` (TGA de 32
+  bits con 4 bytes, se convierte a PNG) u `.OZB`.
+- **Que modelo le toca a cada item**: `tools\item-editor\item-models.json`,
+  845 indices. MuMain no tiene esa tabla en datos: la asocia en codigo C++
+  (`OpenItems()`, `OpenPlayers()`, `CMonkSystem::LoadModelItem()`,
+  `CChangeRingManager::LoadItemModel()`). El JSON lo genera
+  `extract-item-models.py` interpretando esas funciones:
+
+  ```powershell
+  python tools\item-editor\extract-item-models.py <carpeta del repo de MuMain>
+  ```
+
+  Si actualizas el cliente y aparecen items nuevos, regeneralo. Quedan sin
+  modelo 3 de los 677 items (Weapon of Archangel, Wizard's Ring, Christmas
+  Star), que el cliente carga por rutas especiales.
+
+Lo que se ve es una aproximacion fiel pero no identica al juego: no se aplican
+los efectos de brillo/animacion de textura ("texture scripts") ni el color de
+nivel (+7, +11…).
+
 ## Items nuevos y modelos 3D
 
 Clonar un item a un numero libre funciona del lado del servidor y del cliente
 (nombre, stats, tooltip). Lo que **no** se puede definir desde aca es el modelo
-3D: MuMain asocia cada indice a su archivo `.bmd` de `Data\Item\` en codigo
-(`OpenItems()` en `ZzzOpenData.cpp`), no en una tabla. Un indice que el cliente
-no conoce se ve sin modelo. Para darle uno hay que recompilar el cliente
-(ver `docs\build\windows\console.md` en el repo de MuMain).
+3D: MuMain asocia cada indice a su archivo `.bmd` en codigo, no en una tabla
+(ver arriba). Un indice que el cliente no conoce se ve sin modelo — el visor te
+lo dice ("Sin modelo"). Para darle uno hay que recompilar el cliente (ver
+`docs\build\windows\console.md` en el repo de MuMain).
 
 Lo que si funciona sin recompilar: reusar un indice que ya tenga modelo (por
 ejemplo, redefinir por completo un item que no uses) o cambiar todo lo demas de
@@ -128,6 +161,10 @@ cualquiera de los 677 items originales.
 - `Item_eng.bmd`: 8192 registros de 84 bytes (formato "legacy" de 30 bytes de
   nombre; tambien soporta el de 50), XOR con `FC CF AB`, checksum
   `GenerateCheckSum2` con clave `0xE2F1`. Igual que `ItemDataLoader.cpp` de MuMain.
+- Vista 3D: `BmdModel.cs` (parser BMD + pose), `Textures.cs` (OZJ/OZT/OZB →
+  JPEG/PNG/BMP), `wwwrootiewer.js` sobre three.js r128 (`wwwrootendor\`,
+  MIT, sin CDN: funciona sin internet).
 - API: `GET/PUT /api/items/{id}`, `POST /api/items/{id}/clone`,
   `DELETE /api/items/{id}`, `GET/PUT/DELETE /api/client/items/{indice}`,
+  `GET /api/models/{indice}` (malla ya posada, en JSON), `GET /api/textures?path=`,
   `GET /api/meta`, `GET /api/status`, `GET /api/backups`.

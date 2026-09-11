@@ -167,6 +167,23 @@ button { cursor: pointer; }
 .tag.mono { font-family: var(--mono); }
 .empty { padding: 40px; text-align: center; color: var(--fg-3); }
 
+/* ---------------------------------------------------------------- visor 3D */
+.viewer {
+  position: relative; height: 230px; flex: none;
+  background: radial-gradient(ellipse at 50% 60%, #1c2230 0%, #0f1115 75%);
+  border-bottom: 1px solid var(--line); overflow: hidden;
+}
+.viewer.big { height: 460px; }
+.viewer canvas { width: 100% !important; height: 100% !important; }
+.viewer-info {
+  position: absolute; left: 12px; right: 140px; bottom: 8px; font-size: 11px; color: var(--fg-2);
+  text-shadow: 0 1px 2px #000; pointer-events: none; line-height: 1.35;
+}
+.viewer-info .warn { color: var(--warn); }
+.viewer-info .bad { color: var(--bad); }
+.viewer-tools { position: absolute; right: 10px; top: 8px; display: flex; gap: 4px; }
+.viewer-tools .btn { background: rgba(29, 34, 44, .8); backdrop-filter: blur(4px); }
+
 /* ---------------------------------------------------------------- editor */
 .editor { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
 .editor-head { padding: 14px 18px 0; border-bottom: 1px solid var(--line); }

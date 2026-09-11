@@ -463,6 +463,15 @@ function renderEditor() {
       </div>
       <div class="tabs">${TABS.map(([k, l]) => `<button class="tab ${S.tab === k ? 'active' : ''}" data-tab="${k}">${l}${badge(k)}</button>`).join('')}</div>
     </div>
+    <div class="viewer" id="viewer">
+      <div class="viewer-info" id="viewer-info">cargando modelo…</div>
+      <div class="viewer-tools">
+        <button class="btn sm" id="v-rotate" title="Girar automáticamente">⟳</button>
+        <button class="btn sm" id="v-wire" title="Wireframe">▦</button>
+        <button class="btn sm" id="v-fit" title="Centrar (doble clic en el modelo)">⤢</button>
+        <button class="btn sm" id="v-big" title="Agrandar / achicar">⬍</button>
+      </div>
+    </div>
     <div class="editor-body" id="ed-body"></div>
     <div class="editor-foot">
       <span class="hint" id="ed-hint"></span>
@@ -471,11 +480,34 @@ function renderEditor() {
       <button class="btn primary" id="btn-save" title="Guardar (Ctrl+S)">Guardar</button>
     </div>`;
   $$('.tab', ed).forEach((el) => el.onclick = () => { S.tab = el.dataset.tab; renderEditor(); });
+  mountViewer();
   $('#btn-save').onclick = saveAll;
   $('#btn-clone').onclick = openClone;
   $('#btn-delete').onclick = openDelete;
   renderTab();
   updateDirty();
+}
+
+function mountViewer() {
+  const box = $('#viewer');
+  if (!box || typeof Viewer === 'undefined') return;
+  if (S.viewerBig) box.classList.add('big');
+  const info = $('#viewer-info');
+  Viewer.mount(box, idx(S.draft.group, S.draft.number), (d) => {
+    if (!d) return;
+    if (d.error) { info.innerHTML = `<span class="bad">${esc(d.error)}</span>`; return; }
+    if (!d.file) { info.innerHTML = `<b>Sin modelo</b> · el cliente no tiene un archivo asignado a este índice (${idx(S.draft.group, S.draft.number)})`; return; }
+    if (!d.exists) { info.innerHTML = `<b>Falta el archivo</b> · <span class="mono">${esc(d.file)}</span>`; return; }
+    const tris = d.meshes.reduce((a, m) => a + m.indices.length / 3, 0);
+    const texs = [...new Set(d.meshes.map((m) => m.texture).filter(Boolean))];
+    info.innerHTML = `<span class="mono">${esc(d.file)}</span> · ${d.meshes.length} malla${d.meshes.length === 1 ? '' : 's'}, ${tris} tris, ${d.bones} huesos` +
+      (texs.length ? ` · <span class="muted">${esc(texs.join(', '))}</span>` : '') +
+      (d.warnings && d.warnings.length ? `<br><span class="warn">${esc(d.warnings.join(' · '))}</span>` : '');
+  });
+  $('#v-rotate').onclick = (e) => { e.currentTarget.classList.toggle('primary', Viewer.toggleRotate()); };
+  $('#v-wire').onclick = (e) => { e.currentTarget.classList.toggle('primary', Viewer.toggleWireframe()); };
+  $('#v-fit').onclick = () => Viewer.fit();
+  $('#v-big').onclick = () => { S.viewerBig = !S.viewerBig; box.classList.toggle('big', S.viewerBig); Viewer.resize(); };
 }
 
 function updateDirty() {

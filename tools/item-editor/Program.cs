@@ -21,6 +21,9 @@ var port = Environment.GetEnvironmentVariable("VYPER_PG_PORT") ?? "5433";
 var db = new Db($"Server=localhost;Port={port};User Id=postgres;Password={password};Database=openmu;Command Timeout=60;");
 
 var clientFilePath = Path.Combine(root, "client", "runtime", "Data", "Local", "Eng", "Item_eng.bmd");
+var clientRuntime = Path.Combine(root, "client", "runtime");
+var modelTable = LoadModelTable(Path.Combine(root, "tools", "item-editor", "item-models.json"));
+float[][]? playerSkeleton = null;
 var clientLock = new SemaphoreSlim(1, 1);
 var clientBackedUp = false;
 var serverBackedUp = false;
@@ -174,6 +177,64 @@ api.MapDelete("/client/items/{index:int}", async (int index) =>
     finally { clientLock.Release(); }
 });
 
+// ------------------------------------------------------------ modelos 3D (Fase 2)
+
+api.MapGet("/models", () => Results.Ok(modelTable));
+
+api.MapGet("/models/{index:int}", (int index) =>
+{
+    if (!modelTable.TryGetValue(index, out var relative)) return Results.Ok(new { index, file = (string?)null, exists = false });
+    var path = Path.Combine(clientRuntime, relative);
+    if (!File.Exists(path)) return Results.Ok(new { index, file = relative, exists = false });
+
+    try
+    {
+        var model = BmdModel.Load(path);
+        var warnings = new List<string>();
+        float[][]? skeleton = null;
+        if (model.Bones.Count == 0 && model.Meshes.Any(m => m.Vertices.Any(v => v.Node > 0)))
+        {
+            // partes de armadura: los vertices refieren a los huesos de Player.bmd
+            playerSkeleton ??= LoadPlayerSkeleton();
+            skeleton = playerSkeleton;
+            if (skeleton is null) warnings.Add(@"No pude cargar Data\Player\Player.bmd para posar la armadura.");
+        }
+
+        var dir = Path.GetDirectoryName(path)!;
+        var meshes = model.Bake(skeleton).Select(m =>
+        {
+            var texPath = Textures.Resolve(dir, m.Texture);
+            if (texPath is null && !string.IsNullOrWhiteSpace(m.Texture)) warnings.Add($"Textura no encontrada: {m.Texture}");
+            return new
+            {
+                texture = m.Texture,
+                textureUrl = texPath is null ? null : "/api/textures?path=" + Uri.EscapeDataString(Path.GetRelativePath(clientRuntime, texPath)),
+                positions = m.Positions, normals = m.Normals, uvs = m.Uvs, indices = m.Indices,
+            };
+        }).ToList();
+
+        return Results.Ok(new
+        {
+            index, file = relative, exists = true, name = model.Name, version = model.Version,
+            bones = model.Bones.Count, actions = model.ActionFrames.Count, skeleton = skeleton is not null ? "Player.bmd" : null,
+            meshes, warnings,
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Ok(new { index, file = relative, exists = true, error = ex.Message });
+    }
+});
+
+api.MapGet("/textures", (string path) =>
+{
+    var full = Path.GetFullPath(Path.Combine(clientRuntime, path));
+    if (!full.StartsWith(Path.GetFullPath(clientRuntime), StringComparison.OrdinalIgnoreCase) || !File.Exists(full)) return Results.NotFound();
+    var decoded = Textures.Decode(full);
+    if (decoded is null) return Results.NotFound();
+    return Results.Bytes(decoded.Value.Data, decoded.Value.ContentType);
+});
+
 api.MapGet("/backups", () =>
 {
     var files = Directory.EnumerateFiles(backupDir, "*", SearchOption.AllDirectories)
@@ -233,6 +294,20 @@ async Task BackupServerAsync(ItemDetail previous, string action)
     Directory.CreateDirectory(dir);
     var target = Path.Combine(dir, $"{previous.Group}-{previous.Number}.{Stamp()}.{action}.json");
     await File.WriteAllTextAsync(target, JsonSerializer.Serialize(previous, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+}
+
+Dictionary<int, string> LoadModelTable(string file)
+{
+    if (!File.Exists(file)) return new Dictionary<int, string>();
+    var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(file)) ?? new();
+    return raw.ToDictionary(kv => int.Parse(kv.Key), kv => kv.Value);
+}
+
+float[][]? LoadPlayerSkeleton()
+{
+    var path = Path.Combine(clientRuntime, "Data", "Player", "Player.bmd");
+    if (!File.Exists(path)) return null;
+    try { return BmdModel.Load(path).BoneMatrices(0, 0); } catch { return null; }
 }
 
 static string FindRoot()
