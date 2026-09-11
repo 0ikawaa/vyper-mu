@@ -65,6 +65,7 @@ const S = {
   q: '', group: null, cls: null, flags: new Set(), sort: 'gn',
   undo: [],
   restartNeeded: false,
+  mode: 'items',
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -309,7 +310,8 @@ function combo(container, { items, value, placeholder = 'Buscar…', onChange })
 
   const render = () => {
     const q = input.value.trim().toLowerCase();
-    const list = (q ? items.filter((x) => x.label.toLowerCase().includes(q) || (x.sub || '').toLowerCase().includes(q)) : items).slice(0, 60);
+    const rank = (x) => { const l = x.label.toLowerCase(); return l === q ? 0 : l.startsWith(q) ? 1 : l.includes(q) ? 2 : 3; };
+    const list = (q ? items.filter((x) => x.label.toLowerCase().includes(q) || (x.sub || '').toLowerCase().includes(q)).sort((a, b2) => rank(a) - rank(b2)) : items).slice(0, 60);
     menu.innerHTML = list.map((x, i) => `<div data-id="${esc(x.id)}" class="${i === hl ? 'hl' : ''}">${esc(x.label)}${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</div>`).join('') || '<div class="muted">Sin resultados</div>';
     menu.hidden = false;
   };
@@ -444,7 +446,20 @@ const TABS = [
   ['options', 'Opciones y sets'], ['drops', 'Drops'], ['client', 'Cliente'],
 ];
 
+function setMode(mode) {
+  S.mode = mode;
+  $$('.modes .mode').forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+  const items = mode === 'items';
+  $('#items-side').hidden = !items; $('#acc-side').hidden = items;
+  $('.list-head').hidden = !items; $('#list').hidden = !items; $('#acc-main').hidden = items;
+  $('#search').placeholder = items ? 'Buscar por nombre, grupo/numero (ej: 7 5) o índice…' : 'Buscar cuenta o personaje…';
+  $('#search').value = '';
+  if (items) { S.q = ''; renderList(); renderEditor(); }
+  else { $('#editor').innerHTML = '<div class="empty" style="margin-top:120px">Cargando cuentas…</div>'; Acc.enter().catch((e) => toast(e.message, 'bad')); }
+}
+
 function renderEditor() {
+  if (S.mode !== 'items') return;
   const ed = $('#editor');
   if (!S.draft) { ed.innerHTML = '<div class="empty" style="margin-top:120px">Elegí un item de la lista.</div>'; return; }
   const d = S.draft;
@@ -976,7 +991,8 @@ function openDelete() {
 
 function bindGlobal() {
   const search = $('#search');
-  search.addEventListener('input', () => { S.q = search.value; renderList(); });
+  search.addEventListener('input', () => { if (S.mode === 'items') { S.q = search.value; renderList(); } else Acc.search(search.value); });
+  $$('.modes .mode').forEach((b) => b.onclick = () => setMode(b.dataset.mode));
   $('#sort').addEventListener('change', (e) => { S.sort = e.target.value; renderList(); });
   $('#btn-undo').onclick = undo;
   $('#btn-reload').onclick = async () => {
@@ -987,8 +1003,9 @@ function bindGlobal() {
   document.addEventListener('keydown', (e) => {
     const inInput = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
     if (e.key === '/' && !inInput) { e.preventDefault(); search.focus(); search.select(); }
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveAll(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && S.mode === 'items') { e.preventDefault(); saveAll(); }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !inInput) { e.preventDefault(); undo(); }
+    if (S.mode !== 'items') return;
     if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (e.target === search || !inInput)) {
       const list = filtered();
       if (!list.length) return;

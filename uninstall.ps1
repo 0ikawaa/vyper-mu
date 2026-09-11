@@ -219,6 +219,19 @@ if ($tarea) {
     Write-Host "  Tarea programada: no existe" -ForegroundColor DarkGray
 }
 
+# Tarea programada del Item Editor (scripts\item-editor.ps1 -Instalar)
+$tareaIE = Get-ScheduledTask -TaskName 'vyper-mu Item Editor' -ErrorAction SilentlyContinue
+if ($tareaIE) {
+    Write-Host "  Tarea programada 'vyper-mu Item Editor'"
+    if ($DryRun) { Write-Host "    [dry-run]" -ForegroundColor DarkGray }
+    else {
+        Stop-Process -Name 'VyperMu.ItemEditor' -Force -ErrorAction SilentlyContinue
+        Unregister-ScheduledTask -TaskName 'vyper-mu Item Editor' -Confirm:$false
+        Remove-Item (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Item Editor.url') -ErrorAction SilentlyContinue
+        Write-Host "    borrada" -ForegroundColor Green
+    }
+}
+
 # Cache de NuGet: compilar OpenMU la infla bastante. Es compartida con
 # cualquier otro proyecto .NET tuyo, por eso se pregunta aparte.
 $nuget = Join-Path $env:USERPROFILE '.nuget\packages'

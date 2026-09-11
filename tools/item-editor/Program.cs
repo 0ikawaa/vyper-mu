@@ -15,11 +15,14 @@ var root = FindRoot();
 var backupDir = Path.Combine(root, "tools", "item-editor", "backups");
 Directory.CreateDirectory(backupDir);
 
+EnsurePostgres(root);
+
 var pwFile = Path.Combine(root, "server", ".pgpassword");
 var password = File.Exists(pwFile) ? File.ReadAllText(pwFile).Trim() : "admin";
 var port = Environment.GetEnvironmentVariable("VYPER_PG_PORT") ?? "5433";
 var db = new Db($"Server=localhost;Port={port};User Id=postgres;Password={password};Database=openmu;Command Timeout=60;");
 
+var accounts = new AccountsDb(db);
 var clientFilePath = Path.Combine(root, "client", "runtime", "Data", "Local", "Eng", "Item_eng.bmd");
 var clientRuntime = Path.Combine(root, "client", "runtime");
 var modelTable = LoadModelTable(Path.Combine(root, "tools", "item-editor", "item-models.json"));
@@ -235,6 +238,65 @@ api.MapGet("/textures", (string path) =>
     return Results.Bytes(decoded.Value.Data, decoded.Value.ContentType);
 });
 
+// ------------------------------------------------------------ cuentas, personajes, inventario y baul (Fase 3)
+
+api.MapGet("/accounts", async () => Results.Ok(await accounts.ListAsync()));
+
+api.MapGet("/accounts/{id:guid}", async (Guid id) =>
+{
+    var detail = await accounts.GetAsync(id);
+    return detail is null ? Results.NotFound() : Results.Ok(detail);
+});
+
+api.MapGet("/definitions/{id:guid}/options", async (Guid id) =>
+{
+    var options = await accounts.GetDefinitionOptionsAsync(id);
+    return options is null ? Results.NotFound() : Results.Ok(options);
+});
+
+api.MapPost("/inventory/items", async (ItemWrite item) =>
+{
+    try
+    {
+        var id = await accounts.CreateItemAsync(item);
+        return Results.Ok(await accounts.GetItemAsync(id));
+    }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapPut("/inventory/items/{id:guid}", async (Guid id, ItemWrite item) =>
+{
+    try
+    {
+        await accounts.UpdateItemAsync(id, item);
+        return Results.Ok(await accounts.GetItemAsync(id));
+    }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapPost("/inventory/items/{id:guid}/move", async (Guid id, MoveRequest move) =>
+{
+    try
+    {
+        await accounts.MoveItemAsync(id, move);
+        return Results.Ok(await accounts.GetItemAsync(id));
+    }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapDelete("/inventory/items/{id:guid}", async (Guid id) =>
+{
+    await accounts.DeleteItemAsync(id);
+    return Results.NoContent();
+});
+
+api.MapPut("/storages/{id:guid}/money", async (Guid id, MoneyRequest body) =>
+{
+    if (body.Money < 0 || body.Money > 2_000_000_000) return Problem("El zen tiene que estar entre 0 y 2.000.000.000.");
+    await accounts.SetMoneyAsync(id, body.Money);
+    return Results.NoContent();
+});
+
 api.MapGet("/backups", () =>
 {
     var files = Directory.EnumerateFiles(backupDir, "*", SearchOption.AllDirectories)
@@ -310,6 +372,43 @@ float[][]? LoadPlayerSkeleton()
     try { return BmdModel.Load(path).BoneMatrices(0, 0); } catch { return null; }
 }
 
+/// <summary>Si PostgreSQL (portable, server\pgsql) no esta escuchando, lo levanta. El editor no necesita OpenMU, pero si la base.</summary>
+static void EnsurePostgres(string root)
+{
+    var port = int.Parse(Environment.GetEnvironmentVariable("VYPER_PG_PORT") ?? "5433");
+    if (PortOpen(port)) return;
+    var pgCtl = Path.Combine(root, "server", "pgsql", "bin", "pg_ctl.exe");
+    var pgData = Path.Combine(root, "server", "pgdata");
+    if (!File.Exists(pgCtl) || !Directory.Exists(pgData)) return;
+    var logs = Path.Combine(root, "server", "logs");
+    Directory.CreateDirectory(logs);
+    Console.WriteLine("  PostgreSQL no esta corriendo: lo levanto...");
+    try
+    {
+        using var p = Process.Start(new ProcessStartInfo(pgCtl, $"-D \"{pgData}\" -l \"{Path.Combine(logs, "postgres.log")}\" start")
+        {
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+        });
+        p?.WaitForExit(30000);
+        for (int i = 0; i < 30 && !PortOpen(port); i++) Thread.Sleep(1000);
+        Console.WriteLine(PortOpen(port) ? "  PostgreSQL listo." : @"  PostgreSQL no levanto; revisa server\logs\postgres.log");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("  No pude levantar PostgreSQL: " + ex.Message);
+    }
+}
+
+static bool PortOpen(int port)
+{
+    try
+    {
+        using var client = new System.Net.Sockets.TcpClient();
+        return client.ConnectAsync("127.0.0.1", port).Wait(500) && client.Connected;
+    }
+    catch { return false; }
+}
+
 static string FindRoot()
 {
     var env = Environment.GetEnvironmentVariable("VYPER_ROOT");
@@ -330,3 +429,5 @@ static string FindRoot()
 
     throw new InvalidOperationException("No encuentro la raiz de vyper-mu. Corre el editor con scripts\\item-editor.ps1 o define VYPER_ROOT.");
 }
+
+record MoneyRequest(int Money);

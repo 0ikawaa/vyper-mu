@@ -14,6 +14,9 @@ $pg = Get-Process -Name 'postgres' -ErrorAction SilentlyContinue
 $mu = Get-Process -Name 'MUnique.OpenMU.Startup' -ErrorAction SilentlyContinue
 Write-Host ("  PostgreSQL : {0}" -f $(if($pg){"corriendo ($($pg.Count) procesos)"}else{"parado"})) -ForegroundColor $(if($pg){'Green'}else{'DarkGray'})
 Write-Host ("  OpenMU     : {0}" -f $(if($mu){"corriendo (PID $($mu.Id))"}else{"parado"}))          -ForegroundColor $(if($mu){'Green'}else{'DarkGray'})
+$ie = Get-Process -Name 'VyperMu.ItemEditor' -ErrorAction SilentlyContinue
+$ieTask = Get-ScheduledTask -TaskName 'vyper-mu Item Editor' -ErrorAction SilentlyContinue
+Write-Host ("  Item Editor: {0}{1}" -f $(if($ie){"corriendo (http://localhost:5050)"}else{"parado"}), $(if($ieTask){" - instalado al iniciar sesion"}else{""})) -ForegroundColor $(if($ie){'Green'}else{'DarkGray'})
 
 Write-Host "`n--- Puertos ---" -ForegroundColor Cyan
 # Lista de pares en vez de hashtable: en un [ordered], indexar con un entero

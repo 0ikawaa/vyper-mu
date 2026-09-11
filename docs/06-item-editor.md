@@ -12,6 +12,51 @@ mitades** de un item, la del servidor (OpenMU, en PostgreSQL) y la del cliente
 La primera vez compila (~30 s). Es una app local: escucha solo en `localhost`
 y no tiene login, no la expongas a internet.
 
+### Dejarlo siempre disponible
+
+```powershell
+.\scripts\item-editor.ps1 -Instalar
+```
+
+Lo registra como tarea de Windows que arranca al iniciar sesion, corriendo
+oculto, y deja un acceso directo **Item Editor** en el escritorio. Desde ese
+momento http://localhost:5050 esta siempre, este o no corriendo el juego: el
+editor no necesita OpenMU, solo la base, y si PostgreSQL esta apagado lo levanta
+solo. `.\scripts\item-editor.ps1 -Desinstalar` lo saca (el `uninstall.ps1`
+tambien). `status.ps1` muestra si esta corriendo.
+
+## Cuentas, personajes, inventario y baul
+
+Arriba, el boton **Cuentas** cambia de modo. A la izquierda la lista de cuentas
+(buscador por cuenta o nombre de personaje; marca GM y baneadas). Al elegir una:
+
+- **Personajes** como en la pantalla de seleccion del juego: nombre, clase,
+  nivel, mapa, zen, cantidad de items. Se elige uno.
+- **Equipo** (los 12 slots: manos, casco, armadura, pantalon, guantes, botas,
+  alas, mascota, pendiente, anillos) y **stats** del personaje.
+- **Inventario** (8x8 mas las extensiones que tenga) y **baul** de la cuenta
+  (8x15, o 8x30 si es extendido), dibujados como en el juego, con la miniatura
+  3D de cada item, el +nivel, borde verde para excelentes y azul para ancient.
+- **Zen** del inventario y del baul, editable.
+
+Con los items:
+
+- **Clic** en uno: se edita a la derecha (modelo 3D, definicion, nivel,
+  durabilidad/cantidad, skill, sockets, slot y todas las **opciones** que esa
+  definicion admite: luck, option +N, excelentes, alas, harmony, sockets, y el
+  **set ancient** con su bonus +5/+10).
+- **Clic en una celda vacia** (o "+ Agregar item"): agrega uno nuevo ahi.
+- **Arrastrar** entre inventario, equipo y baul; o los botones "Al baul" /
+  "Al inventario" (primer lugar libre). **Duplicar** y **Borrar**.
+
+El editor no deja pisar items (calcula el tamaño de cada uno en la grilla) y
+guarda directo en la base, sin backup previo: son datos de jugadores, no
+configuracion. Si necesitas volver atras, esta `backup.ps1`.
+
+> **Importante**: editá personajes que **no esten conectados**. OpenMU guarda
+> el personaje al salir del juego y pisaria tus cambios. Si OpenMU esta
+> corriendo, el editor te lo recuerda con un aviso.
+
 ## Que se puede hacer
 
 | Pestaña | Que edita | Donde vive |
@@ -164,7 +209,12 @@ cualquiera de los 677 items originales.
 - Vista 3D: `BmdModel.cs` (parser BMD + pose), `Textures.cs` (OZJ/OZT/OZB →
   JPEG/PNG/BMP), `wwwrootiewer.js` sobre three.js r128 (`wwwrootendor\`,
   MIT, sin CDN: funciona sin internet).
-- API: `GET/PUT /api/items/{id}`, `POST /api/items/{id}/clone`,
+- Cuentas: `AccountsDb.cs` (esquema `data`: Account, Character, ItemStorage, Item,
+  ItemOptionLink, ItemItemOfItemSet, StatAttribute) y `wwwrootccounts.js`.
+- API cuentas: `GET /api/accounts`, `GET /api/accounts/{id}`,
+  `GET /api/definitions/{id}/options`, `POST/PUT/DELETE /api/inventory/items[/{id}]`,
+  `POST /api/inventory/items/{id}/move`, `PUT /api/storages/{id}/money`.
+- API items: `GET/PUT /api/items/{id}`, `POST /api/items/{id}/clone`,
   `DELETE /api/items/{id}`, `GET/PUT/DELETE /api/client/items/{indice}`,
   `GET /api/models/{indice}` (malla ya posada, en JSON), `GET /api/textures?path=`,
   `GET /api/meta`, `GET /api/status`, `GET /api/backups`.

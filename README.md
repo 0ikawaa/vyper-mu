@@ -109,7 +109,8 @@ login: se registra sola.
 
 | Comando | Que hace |
 |---|---|
-| `.\scripts\item-editor.ps1` | Editor web de items (servidor + cliente) con vista 3D, en http://localhost:5050 — ver [docs/06-item-editor.md](docs/06-item-editor.md) |
+| `.\scripts\item-editor.ps1` | Editor web de items (servidor + cliente) con vista 3D, y de cuentas: personajes, inventario y baúl. http://localhost:5050 — ver [docs/06-item-editor.md](docs/06-item-editor.md) |
+| `.\scripts\item-editor.ps1 -Instalar` | Deja el editor siempre disponible (arranca con Windows, no necesita OpenMU) |
 
 **Panel de administracion**: http://localhost:5000 — rates, drops, servidores,
 cuentas, spawns.
@@ -140,7 +141,7 @@ Para jugar con otra gente ver [docs/04-red-y-puertos.md](docs/04-red-y-puertos.m
 | [03-configuracion.md](docs/03-configuracion.md) | Rates, drops, servidores, que NO trae |
 | [04-red-y-puertos.md](docs/04-red-y-puertos.md) | Firewall, LAN, internet |
 | [05-mantenimiento.md](docs/05-mantenimiento.md) | Backups, updates, problemas comunes |
-| [06-item-editor.md](docs/06-item-editor.md) | Item Editor: editar items del servidor y del cliente, con vista 3D |
+| [06-item-editor.md](docs/06-item-editor.md) | Item Editor: items (servidor + cliente, vista 3D), cuentas, personajes, inventario y baúl |
 | [docker/README.md](docker/README.md) | Alternativa con Docker |
 
 ---

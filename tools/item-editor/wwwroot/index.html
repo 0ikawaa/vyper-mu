@@ -11,6 +11,7 @@
 <div class="app">
   <header class="topbar">
     <div class="brand"><span class="logo">IE</span> Item Editor <small>vyper-mu</small></div>
+    <div class="modes"><button class="mode active" data-mode="items">Items</button><button class="mode" data-mode="accounts">Cuentas</button></div>
     <div class="search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="search" type="search" placeholder="Buscar por nombre, grupo/numero (ej: 7 5) o indice…" autocomplete="off">
@@ -28,6 +29,8 @@
   </header>
 
   <aside class="sidebar">
+    <div id="acc-side" hidden></div>
+    <div id="items-side">
     <h4>Grupos</h4>
     <div id="groups"></div>
     <h4>Clase</h4>
@@ -37,6 +40,7 @@
       <button class="chip" data-flag="desync">Cliente desincronizado</button>
       <button class="chip" data-flag="noclient">Sin registro en cliente</button>
       <button class="chip" data-flag="drops">Dropea de monstruos</button>
+    </div>
     </div>
   </aside>
 
@@ -53,6 +57,7 @@
       </label>
     </div>
     <div class="list-body" id="list"></div>
+    <div class="acc-main" id="acc-main" hidden></div>
   </section>
 
   <section class="editor" id="editor">
@@ -68,6 +73,7 @@
 
 <script src="vendor/three.min.js"></script>
 <script src="viewer.js"></script>
+<script src="accounts.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
