@@ -106,12 +106,148 @@ const Acc = (() => {
     const root = $('#acc-side');
     const q = T.q.trim().toLowerCase();
     const list = T.accounts.filter((a) => !q || a.loginName.toLowerCase().includes(q) || a.characterNames.some((n) => n.toLowerCase().includes(q)));
-    root.innerHTML = `<h4>Cuentas <span class="muted">(${list.length})</span></h4>` + list.map((a) => `
+    root.innerHTML = `<h4>Cuentas <span class="muted">(${list.length})</span></h4><div style="padding:0 4px 8px"><button class="btn sm primary" id="acc-new" style="width:100%">+ Nueva cuenta</button></div>` + list.map((a) => `
       <button class="acc-row ${a.id === T.accountId ? 'active' : ''}" data-id="${a.id}">
         <span class="login">${esc(a.loginName)}${a.state === 2 || a.state === 3 ? ' <span class="tag info">GM</span>' : a.state === 4 || a.state === 5 ? ' <span class="tag warn">ban</span>' : ''}</span>
         <span class="chars">${a.characters ? esc(a.characterNames.join(', ')) : '<i>sin personajes</i>'}</span>
       </button>`).join('') || '<div class="muted" style="padding:8px">Nada.</div>';
     $$('.acc-row', root).forEach((el) => el.onclick = () => openAccount(el.dataset.id).catch((e) => toast(e.message, 'bad')));
+    $('#acc-new', root).onclick = newAccount;
+  }
+
+  const STATES = [[0, 'Normal'], [2, 'Game Master'], [3, 'Game Master (invisible)'], [4, 'Baneada'], [5, 'Baneada temporalmente'], [1, 'Espectador']];
+  const CHAR_STATES = [[0, 'Normal'], [32, 'Game Master'], [1, 'Baneado']];
+
+  function newAccount() {
+    modal({
+      title: 'Nueva cuenta',
+      body: `<div class="grid two">
+        <div class="field"><label>Cuenta (1–10 letras/números)</label><input id="na-login" maxlength="10" autocomplete="off"></div>
+        <div class="field"><label>Contraseña (1–20)</label><input id="na-pass" maxlength="20" autocomplete="new-password"></div>
+        <div class="field"><label>Email (opcional)</label><input id="na-mail"></div>
+        <div class="field"><label>Estado</label><select id="na-state">${STATES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:10px">Con la cuenta creada, el jugador entra con ese usuario y contraseña y crea sus personajes en el juego (o los creás vos acá).</p>`,
+      okText: 'Crear',
+      onOk: async (root) => {
+        const body = { loginName: $('#na-login', root).value.trim(), password: $('#na-pass', root).value, eMail: $('#na-mail', root).value.trim(), state: +$('#na-state', root).value };
+        const r = await api('/accounts', { method: 'POST', body });
+        toast(`Cuenta ${body.loginName} creada.`, 'ok');
+        await loadAccounts();
+        await openAccount(r.id);
+      },
+    });
+  }
+
+  function editAccount() {
+    const a = T.detail.account;
+    modal({
+      title: `Cuenta ${a.loginName}`,
+      body: `<div class="grid two">
+        <div class="field"><label>Nueva contraseña (vacío = no cambiar)</label><input id="ea-pass" maxlength="20" autocomplete="new-password"></div>
+        <div class="field"><label>Email</label><input id="ea-mail" value="${esc(a.eMail || '')}"></div>
+        <div class="field"><label>Estado</label><select id="ea-state">${STATES.map(([v, l]) => `<option value="${v}" ${a.state === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="field"><label>Baúl</label><label class="check" style="padding-top:8px"><input type="checkbox" id="ea-vault" ${a.isVaultExtended ? 'checked' : ''}> Extendido (8×30)</label></div>
+      </div>`,
+      okText: 'Guardar',
+      onOk: async (root) => {
+        const body = { password: $('#ea-pass', root).value || null, eMail: $('#ea-mail', root).value.trim(), state: +$('#ea-state', root).value, isVaultExtended: $('#ea-vault', root).checked };
+        await api(`/accounts/${a.id}`, { method: 'PUT', body });
+        toast('Cuenta guardada.', 'ok');
+        await reload();
+      },
+    });
+  }
+
+  function deleteAccount() {
+    const a = T.detail.account;
+    modal({
+      title: `Borrar la cuenta ${a.loginName}`,
+      body: `<p>Se borran la cuenta, sus ${T.detail.characters.length} personaje(s), inventarios y baúl. <b>No hay deshacer.</b></p>
+        <div class="field"><label>Escribí el nombre de la cuenta para confirmar</label><input id="da-confirm" autocomplete="off"></div>`,
+      okText: 'Borrar todo', okClass: 'danger',
+      onOk: async (root) => {
+        if ($('#da-confirm', root).value.trim().toLowerCase() !== a.loginName.toLowerCase()) { toast('El nombre no coincide.', 'warn'); return false; }
+        await api(`/accounts/${a.id}`, { method: 'DELETE' });
+        toast('Cuenta borrada.', 'ok');
+        T.accountId = null; T.detail = null; T.sel = null; T.adding = null;
+        await loadAccounts(); renderMain(); renderEditor();
+      },
+    });
+  }
+
+  async function newCharacter() {
+    const classes = (await api('/classes')).filter((c) => c.canGetCreated);
+    const used = new Set(T.detail.characters.map((c) => c.slot));
+    const free = [0, 1, 2, 3, 4].filter((s) => !used.has(s));
+    if (!free.length) { toast('La cuenta ya tiene 5 personajes.', 'warn'); return; }
+    modal({
+      title: 'Nuevo personaje',
+      body: `<div class="grid two">
+        <div class="field"><label>Nombre (1–10 letras/números)</label><input id="nc-name" maxlength="10" autocomplete="off"></div>
+        <div class="field"><label>Clase</label><select id="nc-class">${classes.map((c) => `<option value="${c.number}">${esc(c.name)}</option>`).join('')}</select></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:10px">Nivel 1, stats base de la clase, en el mapa inicial. Después lo podés subir de nivel con "Editar personaje".</p>`,
+      okText: 'Crear',
+      onOk: async (root) => {
+        const body = { name: $('#nc-name', root).value.trim(), classNumber: +$('#nc-class', root).value, slot: free[0] };
+        const r = await api(`/accounts/${T.accountId}/characters`, { method: 'POST', body });
+        toast(`Personaje ${body.name} creado.`, 'ok');
+        T.charId = r.id;
+        await reload();
+      },
+    });
+  }
+
+  function editCharacter() {
+    const c = currentChar(); if (!c) return;
+    const st = c.stats || {};
+    const statField = (k, label) => st[k] === undefined ? '' : `<div class="field"><label>${label}</label><input type="number" min="0" max="65535" data-stat="${esc(k)}" value="${Math.round(st[k])}"></div>`;
+    modal({
+      title: `Editar ${c.name}`,
+      body: `<div class="grid two">
+        <div class="field"><label>Nombre</label><input id="ec-name" maxlength="10" value="${esc(c.name)}"></div>
+        <div class="field"><label>Nivel (1–400)</label><input type="number" id="ec-level" min="1" max="400" value="${c.level}"></div>
+        ${statField('Base Strength', 'Fuerza')}${statField('Base Agility', 'Agilidad')}${statField('Base Vitality', 'Vitalidad')}${statField('Base Energy', 'Energía')}${statField('Base Leadership', 'Comando')}
+        <div class="field"><label>Puntos libres</label><input type="number" id="ec-points" min="0" value="${c.levelUpPoints}"></div>
+        <div class="field"><label>Estado</label><select id="ec-state">${CHAR_STATES.map(([v, l]) => `<option value="${v}" ${c.state === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        <div class="field"><label>Extensiones de inventario (0–4)</label><input type="number" id="ec-ext" min="0" max="4" value="${c.inventoryExtensions}"></div>
+        <div class="field"><label>PK (asesinatos)</label><input type="number" id="ec-pk" min="0" value="${c.playerKillCount}"></div>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:10px">Al cambiar el nivel se ajustan la experiencia (fórmula de OpenMU) y los puntos libres según la clase. Un personaje "Game Master" puede usar los comandos /item, /level, etc.</p>`,
+      okText: 'Guardar',
+      onOk: async (root) => {
+        const stats = {};
+        $$('[data-stat]', root).forEach((el) => { stats[el.dataset.stat] = +el.value || 0; });
+        const level = +$('#ec-level', root).value;
+        const points = +$('#ec-points', root).value;
+        const body = {
+          name: $('#ec-name', root).value.trim() !== c.name ? $('#ec-name', root).value.trim() : null,
+          level: level !== c.level ? level : null,
+          levelUpPoints: level === c.level || points !== c.levelUpPoints ? points : null,
+          state: +$('#ec-state', root).value, inventoryExtensions: +$('#ec-ext', root).value, playerKillCount: +$('#ec-pk', root).value, stats,
+        };
+        await api(`/characters/${c.id}`, { method: 'PUT', body });
+        toast('Personaje guardado.', 'ok');
+        await reload();
+      },
+    });
+  }
+
+  function deleteCharacter() {
+    const c = currentChar(); if (!c) return;
+    modal({
+      title: `Borrar a ${c.name}`,
+      body: `<p>Se borra el personaje con su inventario (${c.items.length} items). El baúl es de la cuenta y no se toca. <b>No hay deshacer.</b></p>`,
+      okText: 'Borrar', okClass: 'danger',
+      onOk: async () => {
+        await api(`/characters/${c.id}`, { method: 'DELETE' });
+        toast('Personaje borrado.', 'ok');
+        T.charId = null; T.sel = null; T.adding = null;
+        await reload(false);
+        if (!currentChar()) { T.charId = T.detail.characters[0]?.id || null; renderMain(); }
+      },
+    });
   }
 
   // ------------------------------------------------------------ render: centro (personajes + grillas)
@@ -125,7 +261,10 @@ const Acc = (() => {
       <div class="acc-head">
         <div><h2>${esc(d.account.loginName)}</h2>
           <div class="muted" style="font-size:12px">${d.characters.length} personaje${d.characters.length === 1 ? '' : 's'} · ${d.account.eMail ? esc(d.account.eMail) + ' · ' : ''}registrada ${d.account.registrationDate ? new Date(d.account.registrationDate).toLocaleDateString() : '—'}${d.account.isVaultExtended ? ' · baúl extendido' : ''}</div></div>
-        ${S.status?.serverRunning ? '<div class="note warn" style="margin:0;padding:6px 10px">OpenMU está corriendo: editá solo personajes que no estén conectados (al salir del juego el servidor guarda encima).</div>' : ''}
+        <div style="display:flex;gap:6px;align-items:center">
+          ${S.status?.serverRunning ? '<div class="note warn" style="margin:0 8px 0 0;padding:6px 10px">OpenMU está corriendo: editá solo personajes desconectados.</div>' : ''}
+          <button class="btn sm" id="acc-edit">Editar cuenta</button><button class="btn sm danger" id="acc-del">Borrar cuenta</button>
+        </div>
       </div>
       <div class="char-cards">${d.characters.map((c) => `
         <button class="char-card ${c.id === T.charId ? 'active' : ''}" data-id="${c.id}">
@@ -133,11 +272,17 @@ const Acc = (() => {
           <span class="nm">${esc(c.name)}</span>
           <span class="sub">${esc(c.className)} · Lv ${c.level}${c.masterLevel ? ' (ML ' + c.masterLevel + ')' : ''}</span>
           <span class="sub">${esc(c.mapName || '?')} · ${c.money.toLocaleString()} zen · ${c.items.length} items</span>
-        </button>`).join('') || '<div class="muted">Esta cuenta no tiene personajes.</div>'}
+        </button>`).join('')}
+        ${d.characters.length < 5 ? '<button class="char-card new" id="char-new"><span class="nm">+ Nuevo personaje</span><span class="sub">slot libre: ' + (5 - d.characters.length) + '</span></button>' : ''}
       </div>
       ${ch ? renderCharacter(ch) : ''}
       ${d.vaultId ? renderStorage('vault', d.vaultId, d.vault, 0, vaultRows(), `Baúl${d.account.isVaultExtended ? ' (extendido)' : ''}`, d.vaultMoney) : '<div class="note warn">La cuenta no tiene baúl creado todavía (se crea al entrar al juego por primera vez).</div>'}`;
-    $$('.char-card', root).forEach((el) => el.onclick = () => { T.charId = el.dataset.id; T.sel = null; T.adding = null; renderMain(); renderEditor(); });
+    $$('.char-card[data-id]', root).forEach((el) => el.onclick = () => { T.charId = el.dataset.id; T.sel = null; T.adding = null; renderMain(); renderEditor(); });
+    const cn = $('#char-new', root); if (cn) cn.onclick = () => newCharacter().catch((e) => toast(e.message, 'bad'));
+    $('#acc-edit', root).onclick = editAccount;
+    $('#acc-del', root).onclick = deleteAccount;
+    const ce = $('#char-edit', root); if (ce) ce.onclick = editCharacter;
+    const cd = $('#char-del', root); if (cd) cd.onclick = deleteCharacter;
     bindGrids(root);
   }
 
@@ -151,6 +296,7 @@ const Acc = (() => {
     }).join('');
     return `
       <div class="section"><h3>${esc(ch.name)} · equipo <span class="line"></span>
+        <button class="btn sm" id="char-edit">Editar personaje</button><button class="btn sm danger" id="char-del">Borrar</button>
         <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">STR ${stat('Base Strength')} · AGI ${stat('Base Agility')} · VIT ${stat('Base Vitality')} · ENE ${stat('Base Energy')}${st['Base Leadership'] !== undefined ? ' · CMD ' + stat('Base Leadership') : ''} · puntos libres ${ch.levelUpPoints}${ch.playerKillCount ? ' · PK ' + ch.playerKillCount : ''}</span></h3>
         <div class="equip">${equip}</div>
       </div>

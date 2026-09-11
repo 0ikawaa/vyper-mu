@@ -38,6 +38,18 @@ Arriba, el boton **Cuentas** cambia de modo. A la izquierda la lista de cuentas
   (8x15, o 8x30 si es extendido), dibujados como en el juego, con la miniatura
   3D de cada item, el +nivel, borde verde para excelentes y azul para ancient.
 - **Zen** del inventario y del baul, editable.
+- **Cuentas**: "+ Nueva cuenta" (usuario de hasta 10 caracteres, contraseña de
+  hasta 20 — limites del cliente —, email, estado Normal / Game Master /
+  baneada). "Editar cuenta" cambia contraseña, email, estado y baul
+  extendido. "Borrar cuenta" pide escribir el nombre y borra todo: personajes,
+  inventarios y baul. Las contraseñas se guardan con BCrypt, igual que las
+  crea OpenMU, asi que el jugador entra con ellas directamente.
+- **Personajes**: "+ Nuevo personaje" (nombre y clase; nace nivel 1 con los
+  stats base de la clase en su mapa inicial). "Editar personaje": nombre,
+  nivel (ajusta experiencia y puntos libres con la formula de OpenMU),
+  fuerza/agilidad/vitalidad/energia/comando, puntos libres, estado (Normal /
+  Game Master / baneado), extensiones de inventario, PK. "Borrar" borra el
+  personaje con su inventario.
 
 Con los items:
 
@@ -209,11 +221,13 @@ cualquiera de los 677 items originales.
 - Vista 3D: `BmdModel.cs` (parser BMD + pose), `Textures.cs` (OZJ/OZT/OZB →
   JPEG/PNG/BMP), `wwwrootiewer.js` sobre three.js r128 (`wwwrootendor\`,
   MIT, sin CDN: funciona sin internet).
-- Cuentas: `AccountsDb.cs` (esquema `data`: Account, Character, ItemStorage, Item,
-  ItemOptionLink, ItemItemOfItemSet, StatAttribute) y `wwwrootccounts.js`.
+- Cuentas: `AccountsDb.cs` (lectura, items) y `AccountsAdmin.cs` (alta/baja de cuentas y
+  personajes, BCrypt.Net-Next como OpenMU) sobre el esquema `data`; `wwwrootccounts.js`.
 - API cuentas: `GET /api/accounts`, `GET /api/accounts/{id}`,
   `GET /api/definitions/{id}/options`, `POST/PUT/DELETE /api/inventory/items[/{id}]`,
-  `POST /api/inventory/items/{id}/move`, `PUT /api/storages/{id}/money`.
+  `POST /api/inventory/items/{id}/move`, `PUT /api/storages/{id}/money`,
+  `POST/PUT/DELETE /api/accounts[/{id}]`, `POST /api/accounts/{id}/characters`,
+  `PUT/DELETE /api/characters/{id}`, `GET /api/classes`.
 - API items: `GET/PUT /api/items/{id}`, `POST /api/items/{id}/clone`,
   `DELETE /api/items/{id}`, `GET/PUT/DELETE /api/client/items/{indice}`,
   `GET /api/models/{indice}` (malla ya posada, en JSON), `GET /api/textures?path=`,

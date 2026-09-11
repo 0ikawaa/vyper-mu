@@ -23,6 +23,7 @@ var port = Environment.GetEnvironmentVariable("VYPER_PG_PORT") ?? "5433";
 var db = new Db($"Server=localhost;Port={port};User Id=postgres;Password={password};Database=openmu;Command Timeout=60;");
 
 var accounts = new AccountsDb(db);
+var admin = new AccountsAdmin(db);
 var clientFilePath = Path.Combine(root, "client", "runtime", "Data", "Local", "Eng", "Item_eng.bmd");
 var clientRuntime = Path.Combine(root, "client", "runtime");
 var modelTable = LoadModelTable(Path.Combine(root, "tools", "item-editor", "item-models.json"));
@@ -295,6 +296,46 @@ api.MapPut("/storages/{id:guid}/money", async (Guid id, MoneyRequest body) =>
     if (body.Money < 0 || body.Money > 2_000_000_000) return Problem("El zen tiene que estar entre 0 y 2.000.000.000.");
     await accounts.SetMoneyAsync(id, body.Money);
     return Results.NoContent();
+});
+
+// ------------------------------------------------------------ alta/baja de cuentas y personajes
+
+api.MapPost("/accounts", async (NewAccount a) =>
+{
+    try { var id = await admin.CreateAccountAsync(a); return Results.Ok(new { id }); }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapPut("/accounts/{id:guid}", async (Guid id, AccountPatch p) =>
+{
+    try { await admin.UpdateAccountAsync(id, p); return Results.NoContent(); }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapDelete("/accounts/{id:guid}", async (Guid id) =>
+{
+    try { await admin.DeleteAccountAsync(id); return Results.NoContent(); }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapGet("/classes", async () => Results.Ok(await admin.ClassesAsync()));
+
+api.MapPost("/accounts/{id:guid}/characters", async (Guid id, NewCharacter c) =>
+{
+    try { var cid = await admin.CreateCharacterAsync(id, c); return Results.Ok(new { id = cid }); }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapPut("/characters/{id:guid}", async (Guid id, CharacterPatch p) =>
+{
+    try { await admin.UpdateCharacterAsync(id, p); return Results.NoContent(); }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
+});
+
+api.MapDelete("/characters/{id:guid}", async (Guid id) =>
+{
+    try { await admin.DeleteCharacterAsync(id); return Results.NoContent(); }
+    catch (InvalidOperationException ex) { return Problem(ex.Message); }
 });
 
 api.MapGet("/backups", () =>
